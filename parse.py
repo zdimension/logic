@@ -3,7 +3,7 @@ from typing import List, Optional
 
 from expression import *
 
-OPS = "|&!()→*"
+OPS = "|&!()→*,"
 BINOPS = {
     "&": And,
     "|": Or,
