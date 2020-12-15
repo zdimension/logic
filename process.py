@@ -32,9 +32,14 @@ rules_bidi = {
     _("!($X | $Y)"): _("!$X & !$Y"),
 }
 
-for k, v in rules_bidi.items():
-    rules[k] = v
-    rules[v] = k
+
+def init_bidi():
+    for k, v in rules_bidi.items():
+        rules[k] = v
+        rules[v] = k
+
+
+init_bidi()
 
 
 def get_all(term: Term) -> Generator[Term, None, None]:
@@ -74,9 +79,9 @@ def apply_subs(t: Term, subs: Unification) -> Term:
     return t
 
 
-def unify_args(test: Iterable[Tuple[Term, Term]], res=None) -> Unifications:
+def unify_args(test: Iterable[Tuple[Term, Term]], res=None, bidi: bool = False) -> Unifications:
     for a1, a2 in test:
-        if not (subs := find_unifications(a1, a2)):
+        if not (subs := find_unifications(a1, a2, bidi)):
             return []  # no unification
         choices = []
         for sub in subs:
@@ -87,13 +92,16 @@ def unify_args(test: Iterable[Tuple[Term, Term]], res=None) -> Unifications:
                     continue  # conflict
                 nres = res.copy()
                 nres.update(sub)
-            choices.extend(unify_args(test[1:], nres))
+            new_args = test[1:]
+            if bidi:
+                new_args = [(apply_subs(b1, nres), apply_subs(b2, nres)) for b1, b2 in new_args[1:]]
+            choices.extend(unify_args(new_args, nres, bidi))
         return choices
     else:
         return [res]
 
 
-def unify_functions(haystack: Function, needle: Function) -> Unifications:
+def unify_functions(haystack: Function, needle: Function, bidi: bool = False) -> Unifications:
     # can't unify two different builtin functions except if we're targetting the base type
     if type(haystack) != type(needle):
         return []
@@ -111,7 +119,7 @@ def unify_functions(haystack: Function, needle: Function) -> Unifications:
                              for h in itertools.combinations(ha, len(na))
                              for n in itertools.permutations(na)]
                     for comb in combs:
-                        yield from unify_args(comb)
+                        yield from unify_args(comb, bidi=bidi)
                     return
             elif varargs := {t for t in na if isinstance(t, Constant) and t.name[-1] == "#"}:
                 statargs = set(na) - varargs
@@ -121,7 +129,7 @@ def unify_functions(haystack: Function, needle: Function) -> Unifications:
                     hvarargs = set(ha) - set(t[0] for t in comb)
                     for hvarperm in itertools.permutations(hvarargs):
                         hna = comb + [(dataclasses.replace(haystack, args=hvarargs), varg)]
-                        yield from unify_args(hna)
+                        yield from unify_args(hna, bidi=bidi)
         return []
 
     # can unify if all parameters are unifiable, elementwise
@@ -132,12 +140,10 @@ def unify_functions(haystack: Function, needle: Function) -> Unifications:
     else:
         tests = [list(zip(haystack.get_args(), needle.get_args()))]
     for test in tests:
-        yield from unify_args(test)
+        yield from unify_args(test, bidi=bidi)
 
 
-def gen_unifications(haystack: Term, needle: Term) -> Unifications:
-    # haystack, needle = map(eval, sorted(map(repr, (haystack, needle))))
-
+def gen_unifications(haystack: Term, needle: Term, bidi: bool = False) -> Unifications:
     if haystack == needle:
         return [{}]
 
@@ -149,21 +155,22 @@ def gen_unifications(haystack: Term, needle: Term) -> Unifications:
     if isinstance(haystack, Constant) and isinstance(needle, Constant):
         return []
 
-    # if isinstance(haystack, Variable) or isinstance(needle, Variable):
-    #     l1, l2 = sorted((haystack, needle), key=lambda t: isinstance(t, Variable))
-    #     if l2 in get_all(l1):  # can't unify x and f(x)
-    #         return {}
-    #     return {l2: l1}
+    if bidi:
+        if isinstance(haystack, Variable) or isinstance(needle, Variable):
+            l1, l2 = sorted((haystack, needle), key=lambda t: isinstance(t, Variable))
+            if l2 in get_all(l1):  # can't unify x and f(x)
+                return {}
+            return [{l2: l1}]
 
     if isinstance(haystack, Function) and isinstance(needle, Function):
-        return unify_functions(haystack, needle)
+        return unify_functions(haystack, needle, bidi)
 
     return []
 
 
 @lru_cache(maxsize=32)
-def find_unifications(haystack: Term, needle: Term) -> Unifications:
-    return [dict(t) for t in {frozenset(d.items()) for d in gen_unifications(haystack, needle)}]
+def find_unifications(haystack: Term, needle: Term, bidi: bool = False) -> Unifications:
+    return [dict(t) for t in {frozenset(d.items()) for d in gen_unifications(haystack, needle, bidi)}]
 
 
 def is_atomic(term: Term) -> bool:

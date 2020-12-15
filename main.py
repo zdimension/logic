@@ -1,5 +1,13 @@
 from parse import parse as _
-from process import simplify, truth_table
+from process import *
+
+print(simplify(_("((P & Q) & !R) | (P & !(Q | R))")))
+print(find_unifications(_("p(X,Y,Z)"), _("p(Y,Z,X)"), True))
+print([str(apply_subs(x, {
+    _("Y"): _("f(a)"),
+    _("Z"): _("g(a)"),
+    _("X"): _("a")
+})) for x in (_("p(h(Y,Z),f(a),g(a))"), _("p(h(f(X),g(X)),Y,Z)"))])
 
 forms = {
     "P(A) & !P(A) & C": "FALSE",
