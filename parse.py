@@ -105,7 +105,7 @@ def parse(expr: str) -> Term:
                 ph = expect("*")
                 args = [(left, reader())]
                 if ph:
-                    args.append(True)
+                    args.append("*")
                 left = clazz(*args)
             return left
 

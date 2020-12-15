@@ -1,7 +1,7 @@
 # coding: utf-8
 import itertools
 from functools import lru_cache
-from typing import Generator, Callable, Set, Optional
+from typing import Generator, Callable, Set
 
 from expression import *
 from parse import parse as _
@@ -25,10 +25,11 @@ rules = {
 }
 
 rules_bidi = {
+    _("$X & $Y# | $X & $Z#"): _("$X & ($Y# | $Z#)"),
+    _("$X → $Y"): _("!$X | $Y"),
+
     _("!($X & $Y)"): _("!$X | !$Y"),
     _("!($X | $Y)"): _("!$X & !$Y"),
-    _("$X → $Y"): _("!$X | $Y"),
-    _("$X & $Y# | $X & $Z#"): _("$X & ($Y# | $Z#)")
 }
 
 for k, v in rules_bidi.items():
@@ -112,9 +113,15 @@ def unify_functions(haystack: Function, needle: Function) -> Unifications:
                     for comb in combs:
                         yield from unify_args(comb)
                     return
-            # elif varargs := {t for t in na if isinstance(t, Constant) and t.name[-1] == "#"}:
-            #     statargs = set(na) - varargs
-            #     combs = (zip(statargs, n) for n in itertools.permutations(na, len(statargs)))
+            elif varargs := {t for t in na if isinstance(t, Constant) and t.name[-1] == "#"}:
+                statargs = set(na) - varargs
+                combs = (list(zip(h, statargs)) for h in itertools.permutations(ha, len(statargs)))
+                varg = varargs.pop()  # todo
+                for comb in combs:
+                    hvarargs = set(ha) - set(t[0] for t in comb)
+                    for hvarperm in itertools.permutations(hvarargs):
+                        hna = comb + [(dataclasses.replace(haystack, args=hvarargs), varg)]
+                        yield from unify_args(hna)
         return []
 
     # can unify if all parameters are unifiable, elementwise

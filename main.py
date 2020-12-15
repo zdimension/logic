@@ -1,17 +1,5 @@
-from parse import parse as _, Or, Interpretation
-from process import simplify, find_unifications, truth_table, apply_subs
-
-f = _("A & B & E | A & C & F")
-print(simplify(f))
-#exit()
-#print(find_unifications(_("A | B | !A"), _("$X | !$X")))
-
-# print(find_unifications(_("A & B"), _("$X & $Y")))
-# print(find_unifications(_("A & B"), _("$X & $X")))
-# print(find_unifications(_("A & B => C"), _("$X & $Y => $Z")))
-# exit()
-#print(_("MgO & H2 => Mg & H2O"))
-#print(_("P(X) & !P(X)"))
+from parse import parse as _
+from process import simplify, truth_table
 
 forms = {
     "P(A) & !P(A) & C": "FALSE",
