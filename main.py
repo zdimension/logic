@@ -1,5 +1,6 @@
 from parse import parse as _
-from process import *
+from rules import RULES_CNF
+from simplify import *
 
 print(simplify(_("TRUE | x")))
 # print(simplify(_("((P & Q) & !R) | (P & !(Q | R))")))
@@ -31,7 +32,7 @@ forms = {
 for f, exp in forms.items():
     exp = _(exp)
     ff = simplify(_(f))
-    print(f"{f!s:50} {ff!s:31} {exp!s:30} {ff == exp}")
+    print(f"{f!s:50} {ff!s:31} {exp!s:30} {ff == exp} {simplify(_(f), RULES_CNF)}")
 
 # print(False, find_unification(_("x"), _("f(x, y)")))
 # print(find_unification(_("x"), _("f(x, y)")))
