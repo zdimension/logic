@@ -1,47 +1,50 @@
 # coding: utf-8
 import itertools
+from collections import OrderedDict
 from functools import lru_cache
-from typing import Generator, Callable, Set
+from typing import Generator, Callable, Set, Optional, Sequence
 
 from expression import *
 from parse import parse as _
 
-rules = {
-    _("!!$X"): _("$X"),
-
-    _("!FALSE"): _("TRUE"),
-    _("!TRUE"): _("FALSE"),
-
-    _("$X &* !$X"): _("FALSE"),
-    _("$X |* !$X"): _("TRUE"),
-
-    _("$X &* TRUE"): _("$X"),
-    _("$X &* FALSE"): _("FALSE"),
-
-    _("$X |* TRUE"): _("TRUE"),
-    _("$X |* FALSE"): _("$X"),
-
-    _("($A & $B) | (!$A & $C)"): _("$B | $C"),
-}
-
-rules_bidi = {
-    _("$X & $Y# | $X & $Z#"): _("$X & ($Y# | $Z#)"),
-    _("$X → $Y"): _("!$X | $Y"),
-
-    _("!($X & $Y)"): _("!$X | !$Y"),
-    _("!($X | $Y)"): _("!$X & !$Y"),
-}
+rules = OrderedDict()
 
 
-def init_bidi():
-    for k, v in rules_bidi.items():
-        rules[k] = v
-        rules[v] = k
+def replace(a, b, bidi: bool = False):
+    a, b = map(_, (a, b))
+    rules[a] = b
+    if bidi:
+        rules[b] = a
 
 
-init_bidi()
+replace("!!$X", "$X")
+
+replace("!FALSE", "TRUE")
+replace("!TRUE", "FALSE")
+
+replace("TRUE → $X", "$X")
+replace("FALSE → $X", "TRUE")
+
+replace("$X & $Y# | $X & $Z#", "$X & ($Y# | $Z#)", True)
+
+replace("$X &* !$X", "FALSE")
+replace("$X |* !$X", "TRUE")
+
+replace("$X &* TRUE", "$X")
+replace("$X &* FALSE", "FALSE")
+
+replace("$X |* TRUE", "TRUE")
+replace("$X |* FALSE", "$X")
+
+# replace("($A & $B) | (!$A & $C)", "$B | $C")
+
+replace("$X → $Y", "!$X | $Y", True)
+
+replace("!($X & $Y)", "!$X | !$Y", True)
+replace("!($X | $Y)", "!$X & !$Y", True)
 
 
+# deterministic
 def get_all(term: Term) -> Generator[Term, None, None]:
     yield term
     for f in dataclasses.fields(term):
@@ -53,6 +56,7 @@ def get_all(term: Term) -> Generator[Term, None, None]:
                 yield from get_all(item)
 
 
+# deterministic
 def map_fields(t: Term, func: Callable[[Term], Term]) -> Term:
     edits = {}
     for field in dataclasses.fields(t):
@@ -66,6 +70,7 @@ def map_fields(t: Term, func: Callable[[Term], Term]) -> Term:
     return dataclasses.replace(t, **edits)
 
 
+# deterministic
 def apply_sub(t: Term, find: Term, replace: Term) -> Term:
     if t == find:
         return replace
@@ -73,12 +78,14 @@ def apply_sub(t: Term, find: Term, replace: Term) -> Term:
     return map_fields(t, lambda val: apply_sub(val, find, replace))
 
 
+# deterministic
 def apply_subs(t: Term, subs: Unification) -> Term:
     for find, replace in subs.items():
         t = apply_sub(t, find, replace)
     return t
 
 
+# deterministic
 def unify_args(test: Iterable[Tuple[Term, Term]], res=None, bidi: bool = False) -> Unifications:
     for a1, a2 in test:
         if not (subs := find_unifications(a1, a2, bidi)):
@@ -130,6 +137,7 @@ def unify_functions(haystack: Function, needle: Function, bidi: bool = False) ->
                     for hvarperm in itertools.permutations(hvarargs):
                         hna = comb + [(dataclasses.replace(haystack, args=hvarargs), varg)]
                         yield from unify_args(hna, bidi=bidi)
+                return
         return []
 
     # can unify if all parameters are unifiable, elementwise
@@ -193,13 +201,16 @@ def simplify_deep(term: Term) -> Term:
 
 @lru_cache(maxsize=32)
 def simplify(term: Term) -> Term:
+    term = simplify_deep(term)
     history = [term]
     while True:
-        potential = filter(lambda r: r and r != term, (simplify_deep(item) for item in itertools.chain(
+        rules_simp = set(apply_subs(dest, unif) for src, dest in rules.items() for unif in find_unifications(term, src))
+        potential = list(sorted(filter(lambda r: r and r != term, (simplify_deep(item) for item in itertools.chain(
             [term],
-            (apply_subs(dest, unif) for src, dest in rules.items() for unif in find_unifications(term, src)))))
+            rules_simp))), key=lambda r: len(list(get_all(r)))))
         for choice in potential:
             if choice in history:
+                # print([str(x) for x in history])
                 return term
             term = choice
             history.append(choice)
@@ -214,13 +225,36 @@ def get_vars(term: Term) -> Set[NamedValue]:
     return set(v for v in get_all(term) if isinstance(v, NamedValue))
 
 
-def truth_table(term: Term):
+@dataclass
+class TruthTable:
+    table: Dict[Tuple[bool], bool]
+    variables: Optional[Sequence[str]] = None
+    term: Optional[Term] = None
+
+    def __str__(self):
+        variables = self.variables or [chr(ord("A") + x) for x in range(len([*self.table.keys()][0]))]
+        variables_obj = list(map(Variable, variables))
+        header = " | ".join(variables) + " | " + (str(self.term) if self.term else "RESULT")
+        lines = [header, "-" * len(header)]
+        for vals, res in self.table.items():
+            lines.append(" | ".join("FT"[x] for x in vals) + " | " + "FT"[res] + " | " +
+                         str(simplify(apply_subs(self.term, dict(zip(variables_obj, map(get_literal, vals)))))))
+        return "\n".join(lines)
+
+    def get_truth_density(self) -> float:
+        return sum(self.table.values()) / len(self.table)
+
+    def get_operator_number(self) -> int:
+        return sum(v * 2 ** i for i, v in enumerate(self.table.values()))
+
+
+def get_truth_table(term: Term) -> TruthTable:
     variables = sorted(v.name for v in get_vars(term))
-    interp = Interpretation()
-    header = " | ".join(variables) + " | " + str(term)
-    print(header)
-    print("-" * len(header))
-    for vals in itertools.product((False, True), repeat=len(variables)):
-        interp.values = dict(zip(variables, vals))
-        print(" | ".join("FT"[x] for x in vals) + " | " + "FT"[term.evaluate(interp)] + " | " + str(
-            simplify(apply_subs(term, interp.to_sub()))))
+    return TruthTable({
+        tuple(vals): term.evaluate(Interpretation(dict(zip(variables, vals))))
+        for vals in itertools.product((False, True), repeat=len(variables))
+    }, variables, term)
+
+
+def get_literal(val: bool) -> Literal:
+    return (Negative, Positive)[val]()
