@@ -12,7 +12,7 @@ def replace(a, b, bidi: bool = False):
         rules[b] = a
 
 
-replace("!!$X", "$X")
+replace("!!$X", "$X", True)
 
 replace("!FALSE", "TRUE")
 replace("!TRUE", "FALSE")
@@ -21,6 +21,7 @@ replace("TRUE → $X", "$X")
 replace("FALSE → $X", "TRUE")
 
 replace("$X & $Y# | $X & $Z#", "$X & ($Y# | $Z#)", True)
+#replace("($X | $Y#) & ($X | $Z#)", "$X | ($Y# & $Z#)", True)
 
 replace("$X &* !$X", "FALSE")
 replace("$X |* !$X", "TRUE")

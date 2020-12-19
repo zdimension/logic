@@ -15,7 +15,7 @@ CONSTS = {
 }
 
 
-@dataclass
+@dataclasses.dataclass(frozen=True)
 class Token:
     OP = 0
     VAR = 1
@@ -91,7 +91,7 @@ def parse(expr: str) -> Term:
                 while expect(","):
                     args.append(read_expr())
                 assert expect(")"), "Unclosed parenthesis"
-                return NamedFunction(name, tuple(args))
+                return NamedPredicate(name, tuple(args))
             if name[0].isupper():
                 return Variable(name)
             else:

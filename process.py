@@ -1,52 +1,9 @@
 # coding: utf-8
 import itertools
-from collections import OrderedDict
 from functools import lru_cache
-from typing import Generator, Callable, Set, Optional, Sequence
 
 from expression import *
 from rules import rules
-
-
-# deterministic
-def get_all(term: Term) -> Generator[Term, None, None]:
-    yield term
-    for f in dataclasses.fields(term):
-        val = getattr(term, f.name)
-        if isinstance(val, Term):
-            yield from get_all(val)
-        elif isinstance(val, (tuple, frozenset)):
-            for item in val:
-                yield from get_all(item)
-
-
-# deterministic
-def map_fields(t: Term, func: Callable[[Term], Term]) -> Term:
-    edits = {}
-    for field in dataclasses.fields(t):
-        val = getattr(t, field.name)
-        if isinstance(val, Term):
-            edits[field.name] = func(val)
-        elif isinstance(val, tuple):
-            edits[field.name] = tuple(func(v) for v in val)
-        elif isinstance(val, frozenset):
-            edits[field.name] = frozenset(func(v) for v in val)
-    return dataclasses.replace(t, **edits)
-
-
-# deterministic
-def apply_sub(t: Term, find: Term, replace: Term) -> Term:
-    if t == find:
-        return replace
-
-    return map_fields(t, lambda val: apply_sub(val, find, replace))
-
-
-# deterministic
-def apply_subs(t: Term, subs: Unification) -> Term:
-    for find, replace in subs.items():
-        t = apply_sub(t, find, replace)
-    return t
 
 
 # deterministic
@@ -65,19 +22,19 @@ def unify_args(test: Iterable[Tuple[Term, Term]], res=None, bidi: bool = False) 
                 nres.update(sub)
             new_args = test[1:]
             if bidi:
-                new_args = [(apply_subs(b1, nres), apply_subs(b2, nres)) for b1, b2 in new_args[1:]]
+                new_args = [(b1.apply_subs(nres), b2.apply_subs(nres)) for b1, b2 in new_args[1:]]
             choices.extend(unify_args(new_args, nres, bidi))
         return choices
     else:
         return [res]
 
 
-def unify_functions(haystack: Function, needle: Function, bidi: bool = False) -> Unifications:
+def unify_functions(haystack: Predicate, needle: Predicate, bidi: bool = False) -> Unifications:
     # can't unify two different builtin functions except if we're targetting the base type
     if type(haystack) != type(needle):
         return []
 
-    if isinstance(haystack, NamedFunction) and isinstance(needle, NamedFunction):
+    if isinstance(haystack, NamedPredicate) and isinstance(needle, NamedPredicate):
         if haystack.name != needle.name:  # can't unify two different functions
             return []
 
@@ -133,11 +90,11 @@ def gen_unifications(haystack: Term, needle: Term, bidi: bool = False) -> Unific
     if bidi:
         if isinstance(haystack, Variable) or isinstance(needle, Variable):
             l1, l2 = sorted((haystack, needle), key=lambda t: isinstance(t, Variable))
-            if l2 in get_all(l1):  # can't unify x and f(x)
+            if l2 in l1.get_children():  # can't unify x and f(x)
                 return {}
             return [{l2: l1}]
 
-    if isinstance(haystack, Function) and isinstance(needle, Function):
+    if isinstance(haystack, Predicate) and isinstance(needle, Predicate):
         return unify_functions(haystack, needle, bidi)
 
     return []
@@ -148,13 +105,9 @@ def find_unifications(haystack: Term, needle: Term, bidi: bool = False) -> Unifi
     return [dict(t) for t in {frozenset(d.items()) for d in gen_unifications(haystack, needle, bidi)}]
 
 
-def is_atomic(term: Term) -> bool:
-    return isinstance(term, (Literal, NamedValue))
-
-
 @lru_cache(maxsize=32)
-def simplify_deep(term: Term) -> Term:
-    if is_atomic(term):
+def simplify_basic(term: Term) -> Term:
+    if term.is_atomic():
         return term
 
     if term in rules:
@@ -163,7 +116,23 @@ def simplify_deep(term: Term) -> Term:
     if isinstance(term, VariadicOp) and term.arity() == 1:
         return list(term.args)[0]
 
-    return map_fields(term, simplify)
+    return term
+
+
+@lru_cache(maxsize=32)
+def simplify_deep(term: Term) -> Term:
+    term = simplify_basic(term)
+
+    return term.map_fields(simplify)
+
+
+@lru_cache(maxsize=32)
+def find_forms(term: Term):
+    term = simplify_basic(term)
+
+    results = {term}
+
+    return results
 
 
 @lru_cache(maxsize=32)
@@ -171,10 +140,10 @@ def simplify(term: Term) -> Term:
     term = simplify_deep(term)
     history = [term]
     while True:
-        rules_simp = set(apply_subs(dest, unif) for src, dest in rules.items() for unif in find_unifications(term, src))
+        rules_simp = set(dest.apply_subs(unif) for src, dest in rules.items() for unif in find_unifications(term, src))
         potential = list(sorted(filter(lambda r: r and r != term, (simplify_deep(item) for item in itertools.chain(
             [term],
-            rules_simp))), key=lambda r: len(list(get_all(r)))))
+            rules_simp))), key=lambda r: len(list(r.get_children()))))
         for choice in potential:
             if choice in history:
                 # print([str(x) for x in history])
@@ -188,40 +157,3 @@ def simplify(term: Term) -> Term:
     return simplify_deep(term) or term
 
 
-def get_vars(term: Term) -> Set[NamedValue]:
-    return set(v for v in get_all(term) if isinstance(v, NamedValue))
-
-
-@dataclasses.dataclass
-class TruthTable:
-    table: Dict[Tuple[bool], bool]
-    variables: Optional[Sequence[str]] = None
-    term: Optional[Term] = None
-
-    def __str__(self):
-        variables = self.variables or [chr(ord("A") + x) for x in range(len([*self.table.keys()][0]))]
-        variables_obj = list(map(Variable, variables))
-        header = " | ".join(variables) + " | " + (str(self.term) if self.term else "RESULT")
-        lines = [header, "-" * len(header)]
-        for vals, res in self.table.items():
-            lines.append(" | ".join("FT"[x] for x in vals) + " | " + "FT"[res] + " | " +
-                         str(simplify(apply_subs(self.term, dict(zip(variables_obj, map(get_literal, vals)))))))
-        return "\n".join(lines)
-
-    def get_truth_density(self) -> float:
-        return sum(self.table.values()) / len(self.table)
-
-    def get_operator_number(self) -> int:
-        return sum(v * 2 ** i for i, v in enumerate(self.table.values()))
-
-
-def get_truth_table(term: Term) -> TruthTable:
-    variables = sorted(v.name for v in get_vars(term))
-    return TruthTable({
-        tuple(vals): term.evaluate(Interpretation(dict(zip(variables, vals))))
-        for vals in itertools.product((False, True), repeat=len(variables))
-    }, variables, term)
-
-
-def get_literal(val: bool) -> Literal:
-    return (Negative, Positive)[val]()

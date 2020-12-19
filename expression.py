@@ -1,16 +1,8 @@
 # coding: utf-8
 from abc import ABC, abstractmethod
 import dataclasses
-from typing import Dict, Tuple, Iterable
-
-
-# def dataclass(cls=None, **kwargs):
-#     def wrap(cls):
-#         return dataclasses.dataclass(cls, **{"frozen": True, "eq": True, **kwargs})
-#
-#     if cls is None:
-#         return wrap
-#     return wrap(cls)
+from functools import reduce
+from typing import Dict, Tuple, Iterable, Generator, Set, Callable
 
 
 @dataclasses.dataclass
@@ -26,9 +18,55 @@ class Term(ABC):
     def evaluate(self, interp: Interpretation) -> bool:
         raise NotImplementedError
 
+    def get_children(self) -> Generator["Term", None, None]:
+        yield self
+        for f in dataclasses.fields(self):
+            val = getattr(self, f.name)
+            if isinstance(val, Term):
+                yield from val.get_children()
+            elif isinstance(val, (tuple, frozenset)):
+                for item in val:
+                    yield from item.get_children()
+
+    def get_vars(self) -> Set["NamedValue"]:
+        return set(v for v in self.get_children() if isinstance(v, NamedValue))
+
+    def is_atomic(self) -> bool:
+        return isinstance(self, (Literal, NamedValue))
+
+    def map_fields(self, func: Callable[["Term"], "Term"]) -> "Term":
+        edits = {}
+        for field in dataclasses.fields(self):
+            val = getattr(self, field.name)
+            if isinstance(val, Term):
+                edits[field.name] = func(val)
+            elif isinstance(val, tuple):
+                edits[field.name] = tuple(func(v) for v in val)
+            elif isinstance(val, frozenset):
+                edits[field.name] = frozenset(func(v) for v in val)
+        return dataclasses.replace(self, **edits)
+
+    def apply_sub(self, find: "Term", replace: "Term") -> "Term":
+        if self == find:
+            return replace
+
+        return self.map_fields(lambda val: val.apply_sub(find, replace))
+
+    def apply_subs(self, subs: "Unification") -> "Term":
+        return reduce(
+            lambda cur, sub: cur.apply_sub(*sub),
+            subs.items(),
+            self)
+
+    def get_truth_table(self):
+        from truth_table import TruthTable
+        return TruthTable.from_term(self)
+
 
 class Literal(Term, ABC):
-    pass
+    @staticmethod
+    def from_bool(val: bool) -> "Literal":
+        return (Negative, Positive)[val]()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -72,7 +110,7 @@ class Constant(NamedValue):
     pass
 
 
-class Function(Term, ABC):
+class Predicate(Term, ABC):
     @abstractmethod
     def get_args(self) -> Tuple[Term, ...]:
         raise NotImplementedError
@@ -85,7 +123,7 @@ class Function(Term, ABC):
 
 
 @dataclasses.dataclass(frozen=True)
-class NamedFunction(Function):
+class NamedPredicate(Predicate):
     name: str
     args: Tuple[Term, ...]
 
@@ -100,7 +138,7 @@ class NamedFunction(Function):
 
 
 @dataclasses.dataclass(frozen=True)
-class BuiltinOp(Function, ABC):
+class BuiltinOp(Predicate, ABC):
     args: Tuple[Term, ...]
 
     @staticmethod
@@ -175,7 +213,7 @@ class Imp(BinOp):
 
 
 @dataclasses.dataclass(frozen=True)
-class Not(Function):
+class Not(Predicate):
     elem: Term
 
     def __str__(self):
