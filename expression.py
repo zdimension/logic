@@ -1,19 +1,19 @@
 # coding: utf-8
-import dataclasses
 from abc import ABC, abstractmethod
+import dataclasses
 from typing import Dict, Tuple, Iterable
 
 
-def dataclass(cls=None, **kwargs):
-    def wrap(cls):
-        return dataclasses.dataclass(cls, **{"frozen": True, "eq": True, **kwargs})
+# def dataclass(cls=None, **kwargs):
+#     def wrap(cls):
+#         return dataclasses.dataclass(cls, **{"frozen": True, "eq": True, **kwargs})
+#
+#     if cls is None:
+#         return wrap
+#     return wrap(cls)
 
-    if cls is None:
-        return wrap
-    return wrap(cls)
 
-
-@dataclass(frozen=False)
+@dataclasses.dataclass
 class Interpretation:
     values: Dict[str, bool] = dataclasses.field(default_factory=dict)
 
@@ -21,6 +21,7 @@ class Interpretation:
         return {Variable(name): (Negative, Positive)[val]() for name, val in self.values.items()}
 
 
+@dataclasses.dataclass(frozen=True)
 class Term(ABC):
     def evaluate(self, interp: Interpretation) -> bool:
         raise NotImplementedError
@@ -30,7 +31,7 @@ class Literal(Term, ABC):
     pass
 
 
-@dataclass
+@dataclasses.dataclass(frozen=True)
 class Positive(Literal):
     def __str__(self):
         return "TRUE"
@@ -39,7 +40,7 @@ class Positive(Literal):
         return True
 
 
-@dataclass
+@dataclasses.dataclass(frozen=True)
 class Negative(Literal):
     def __str__(self):
         return "FALSE"
@@ -48,7 +49,7 @@ class Negative(Literal):
         return False
 
 
-@dataclass
+@dataclasses.dataclass(frozen=True)
 class NamedValue(Term):
     name: str
 
@@ -61,12 +62,12 @@ class NamedValue(Term):
         return interp.values[self.name]
 
 
-@dataclass
+@dataclasses.dataclass(frozen=True)
 class Variable(NamedValue):
     pass
 
 
-@dataclass
+@dataclasses.dataclass(frozen=True)
 class Constant(NamedValue):
     pass
 
@@ -83,7 +84,7 @@ class Function(Term, ABC):
         return len(self.get_args())
 
 
-@dataclass
+@dataclasses.dataclass(frozen=True)
 class NamedFunction(Function):
     name: str
     args: Tuple[Term, ...]
@@ -98,7 +99,7 @@ class NamedFunction(Function):
         return f"{self.name}({', '.join(map(str, self.args))})"
 
 
-@dataclass
+@dataclasses.dataclass(frozen=True)
 class BuiltinOp(Function, ABC):
     args: Tuple[Term, ...]
 
@@ -113,13 +114,13 @@ class BuiltinOp(Function, ABC):
         return self.args
 
 
-@dataclass
+@dataclasses.dataclass(frozen=True)
 class BinOp(BuiltinOp, ABC):
     def __init__(self, args: Iterable[Term], op: str = None):
         self.__dict__["args"] = tuple(args)
 
 
-@dataclass
+@dataclasses.dataclass(frozen=True)
 class VariadicOp(BuiltinOp, ABC):
     placeholder: str
 
@@ -137,7 +138,7 @@ class VariadicOp(BuiltinOp, ABC):
         return True
 
 
-@dataclass(init=False)
+@dataclasses.dataclass(frozen=True, init=False)
 class And(VariadicOp):
     @staticmethod
     def get_op():
@@ -150,7 +151,7 @@ class And(VariadicOp):
         return True
 
 
-@dataclass(init=False)
+@dataclasses.dataclass(frozen=True, init=False)
 class Or(VariadicOp):
     @staticmethod
     def get_op():
@@ -163,7 +164,7 @@ class Or(VariadicOp):
         return False
 
 
-@dataclass(init=False)
+@dataclasses.dataclass(frozen=True, init=False)
 class Imp(BinOp):
     @staticmethod
     def get_op():
@@ -173,7 +174,7 @@ class Imp(BinOp):
         return not self.args[0].evaluate(interp) or self.args[1].evaluate(interp)
 
 
-@dataclass
+@dataclasses.dataclass(frozen=True)
 class Not(Function):
     elem: Term
 

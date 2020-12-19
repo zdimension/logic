@@ -5,43 +5,7 @@ from functools import lru_cache
 from typing import Generator, Callable, Set, Optional, Sequence
 
 from expression import *
-from parse import parse as _
-
-rules = OrderedDict()
-
-
-def replace(a, b, bidi: bool = False):
-    a, b = map(_, (a, b))
-    rules[a] = b
-    if bidi:
-        rules[b] = a
-
-
-replace("!!$X", "$X")
-
-replace("!FALSE", "TRUE")
-replace("!TRUE", "FALSE")
-
-replace("TRUE → $X", "$X")
-replace("FALSE → $X", "TRUE")
-
-replace("$X & $Y# | $X & $Z#", "$X & ($Y# | $Z#)", True)
-
-replace("$X &* !$X", "FALSE")
-replace("$X |* !$X", "TRUE")
-
-replace("$X &* TRUE", "$X")
-replace("$X &* FALSE", "FALSE")
-
-replace("$X |* TRUE", "TRUE")
-replace("$X |* FALSE", "$X")
-
-# replace("($A & $B) | (!$A & $C)", "$B | $C")
-
-replace("$X → $Y", "!$X | $Y", True)
-
-replace("!($X & $Y)", "!$X | !$Y", True)
-replace("!($X | $Y)", "!$X & !$Y", True)
+from rules import rules
 
 
 # deterministic
@@ -142,11 +106,14 @@ def unify_functions(haystack: Function, needle: Function, bidi: bool = False) ->
 
     # can unify if all parameters are unifiable, elementwise
     if haystack.commutes():
+        # test all ways to associate the parameters
         tests = [list(zip(h, n))
                  for h in itertools.permutations(haystack.get_args())
                  for n in itertools.permutations(needle.get_args())]
     else:
+        # direct bijection
         tests = [list(zip(haystack.get_args(), needle.get_args()))]
+
     for test in tests:
         yield from unify_args(test, bidi=bidi)
 
@@ -225,7 +192,7 @@ def get_vars(term: Term) -> Set[NamedValue]:
     return set(v for v in get_all(term) if isinstance(v, NamedValue))
 
 
-@dataclass
+@dataclasses.dataclass
 class TruthTable:
     table: Dict[Tuple[bool], bool]
     variables: Optional[Sequence[str]] = None

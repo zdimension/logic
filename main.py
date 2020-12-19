@@ -2,7 +2,7 @@ from parse import parse as _
 from process import *
 
 # print(simplify(_("((P & Q) & !R) | (P & !(Q | R))")))
-# print(find_unifications(_("p(X,Y,Z)"), _("p(Y,Z,X)"), True))
+print(find_unifications(_("p(X,Y,Z)"), _("p(Y,Z,X)"), True))
 # print([str(apply_subs(x, {
 #     _("Y"): _("f(a)"),
 #     _("Z"): _("g(a)"),
@@ -35,7 +35,7 @@ for f, exp in forms.items():
 # print(False, find_unification(_("x"), _("f(x, y)")))
 # print(find_unification(_("x"), _("f(x, y)")))
 f = _("((P & Q) & !R) | (P & !(Q | R))")
-table = get_truth_table(f)
-print(table)
-print(table.get_truth_density())
-print(table.get_operator_number())
+# table = get_truth_table(f)
+# print(table)
+# print(table.get_truth_density())
+# print(table.get_operator_number())
