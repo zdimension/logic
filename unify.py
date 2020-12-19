@@ -84,6 +84,7 @@ def unify_functions(haystack: Predicate, needle: Predicate, bidi: bool = False) 
                     for comb in combs:
                         yield from unify_args(comb, bidi=bidi)
                     return
+            # todo: should allow min and max numbers
             elif varargs := {t for t in na if isinstance(t, Constant) and t.name[-1] == "#"}:
                 statargs = set(na) - varargs
                 combs = (list(zip(h, statargs)) for h in itertools.permutations(ha, len(statargs)))

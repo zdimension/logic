@@ -169,6 +169,9 @@ class VariadicOp(BuiltinOp, ABC):
     def commutes(self) -> bool:
         return True
 
+    def __str__(self):
+        return "(" + f" {self.get_op() + self.placeholder} ".join(map(str, self.args)) + ")"
+
 
 @dataclasses.dataclass(frozen=True, init=False)
 class And(VariadicOp):

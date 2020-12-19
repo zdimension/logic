@@ -3,7 +3,7 @@ import operator
 from collections import OrderedDict, Mapping
 from functools import reduce
 
-from expression import Imp, Equ
+from expression import Imp, Equ, Not, Negative, Positive, Term
 from parse import parse as _
 
 
@@ -43,13 +43,17 @@ class Ruleset(Mapping):
     def add(self, *rules: str) -> "Ruleset":
         res = self.copy()
         for expr in rules:
-            rule = _(expr)
+            rule = expr if isinstance(expr, Term) else _(expr)
             if isinstance(rule, Imp):
                 res.add_raw(rule.get_left(), rule.get_right())
             elif isinstance(rule, Equ):
                 res.add_raw(rule.get_left(), rule.get_right(), True)
+            elif isinstance(rule, Not):
+                res.add_raw(rule.elem, Negative())
             else:
-                raise TypeError("Invalid rule: " + str(rule))
+                res.add_raw(rule, Positive())
+            # else:
+            #     raise TypeError("Invalid rule: " + str(rule))
         return res
 
 
@@ -73,14 +77,16 @@ DEF_IMPLICATION = [
 
 DEF_CONJUNCTION = [
     "$X &* !$X   -> FALSE",
-    "$X &* TRUE  -> $X",
+    # "$X &* TRUE  -> $X",
+    # "$X &* FALSE -> FALSE",
+    "$X# & TRUE  -> $X#",
     "$X &* FALSE -> FALSE"
 ]
 
 DEF_DISJUNCTION = [
     "$X |* !$X   -> TRUE",
     "$X |* TRUE  -> TRUE",
-    "$X |* FALSE -> $X"
+    "$X# | FALSE -> $X#"
 ]
 
 DE_MORGAN = [
