@@ -29,15 +29,6 @@ def simplify_deep(term: Term) -> Term:
 
 
 @lru_cache(maxsize=32)
-def find_forms(term: Term):
-    term = simplify_basic(term)
-
-    results = {term}
-
-    return results
-
-
-@lru_cache(maxsize=32)
 def simplify(term: Term) -> Term:
     term = simplify_deep(term)
     history = [term]
