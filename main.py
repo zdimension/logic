@@ -1,6 +1,7 @@
 from parse import parse as _
 from process import *
 
+print(simplify(_("TRUE | x")))
 # print(simplify(_("((P & Q) & !R) | (P & !(Q | R))")))
 print(find_unifications(_("p(X,Y,Z)"), _("p(Y,Z,X)"), True))
 # print([str(apply_subs(x, {
@@ -10,16 +11,16 @@ print(find_unifications(_("p(X,Y,Z)"), _("p(Y,Z,X)"), True))
 # })) for x in (_("p(h(Y,Z),f(a),g(a))"), _("p(h(f(X),g(X)),Y,Z)"))])
 
 forms = {
-    # "P(A) & !P(A) & C": "FALSE",
-    # "TRUE | x": "TRUE",
-    # "FALSE & x": "FALSE",
-    # "!!A": "A",
-    # "!!!!A": "A",
-    # "A & !A": "FALSE",
-    # "A & !B": "A & !B",
-    # "!(a|b)": "!a & !b",
-    # "b & y => y": "TRUE",
-    # "((P & Q) & !R) | (P & !(Q | R))": "P & !R",
+    "!!A": "A",
+    "P(A) & !P(A) & C": "FALSE",
+    "TRUE | x": "TRUE",
+    "FALSE & x": "FALSE",
+    "!!!!A": "A",
+    "A & !A": "FALSE",
+    "A & !B": "A & !B",
+    "!(a|b)": "!a & !b",
+    "b & y => y": "TRUE",
+    "((P & Q) & !R) | (P & !(Q | R))": "P & !R",
     "(!Q & !R) | (Q & !R)": "!R",
     "(!R & !Q) | (!R & Q)": "!R",
     "(((!Q & !R) | (Q & !R)) & P)": "P & !R",

@@ -153,12 +153,6 @@ class BuiltinOp(Predicate, ABC):
 
 
 @dataclasses.dataclass(frozen=True)
-class BinOp(BuiltinOp, ABC):
-    def __init__(self, args: Iterable[Term], op: str = None):
-        self.__dict__["args"] = tuple(args)
-
-
-@dataclasses.dataclass(frozen=True)
 class VariadicOp(BuiltinOp, ABC):
     placeholder: str
 
@@ -202,6 +196,18 @@ class Or(VariadicOp):
         return False
 
 
+@dataclasses.dataclass(frozen=True)
+class BinOp(BuiltinOp, ABC):
+    def __init__(self, args: Iterable[Term], op: str = None):
+        self.__dict__["args"] = tuple(args)
+
+    def get_left(self):
+        return self.args[0]
+
+    def get_right(self):
+        return self.args[1]
+
+
 @dataclasses.dataclass(frozen=True, init=False)
 class Imp(BinOp):
     @staticmethod
@@ -209,7 +215,17 @@ class Imp(BinOp):
         return "→"
 
     def evaluate(self, interp: Interpretation) -> bool:
-        return not self.args[0].evaluate(interp) or self.args[1].evaluate(interp)
+        return not self.get_left().evaluate(interp) or self.get_right().evaluate(interp)
+
+
+@dataclasses.dataclass(frozen=True, init=False)
+class Equ(BinOp):
+    @staticmethod
+    def get_op():
+        return "↔"
+
+    def evaluate(self, interp: Interpretation) -> bool:
+        return self.get_left().evaluate(interp) == self.get_right().evaluate(interp)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -224,7 +240,3 @@ class Not(Predicate):
 
     def get_args(self) -> Tuple[Term, ...]:
         return self.elem,
-
-
-Unification = Dict[Term, Term]
-Unifications = Iterable[Unification]

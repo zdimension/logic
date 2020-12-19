@@ -3,16 +3,28 @@ from typing import List, Optional
 
 from expression import *
 
-OPS = "|&!()→*,"
+NEGATION = "!"
 BINOPS = {
     "&": And,
     "|": Or,
     "→": Imp,
+    "↔": Equ,
+    "⊨": Imp,
+    "≔": Equ
+}
+PARENS = {
+    "(": ")",
+    "[": "]"
 }
 CONSTS = {
-    "FALSE": Negative,
-    "TRUE": Positive
+    "⊥": Negative,
+    "⊤": Positive
 }
+WILDCARDS = [
+    "*"
+]
+COMMA = ","
+OPS = [*BINOPS, *PARENS, *PARENS.values(), *CONSTS, COMMA, NEGATION, *WILDCARDS]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -24,8 +36,35 @@ class Token:
     type: int
 
 
+CHAR_LUT = {
+    " ": "",
+    ("=>", "->", "⊃"): "→",
+    ("<=>", "<→", "==", "=", "≡"): "↔",
+    ("&&", "∧", "·"): "&",
+    ("||", "∨", "+"): "|",
+    ("¬", "~"): "!",
+    "0": "⊥",
+    "1": "⊤",
+}
+
+STR_LUT = {
+    "FALSE": "⊥",
+    "TRUE": "⊤"
+}
+
+
+def apply_lut(s: str, lut) -> str:
+    for k, v in lut.items():
+        if type(k) == str:
+            k = [k]
+        for kk in k:
+            s = s.replace(kk, v)
+    return s
+
+
 def tokenize(expr: str) -> List[Token]:
-    expr = expr.replace(" ", "").replace("=>", "→")
+    expr = apply_lut(expr, CHAR_LUT)
+
     tokens = []
 
     pos = 0
@@ -41,7 +80,7 @@ def tokenize(expr: str) -> List[Token]:
                 npos += 1
             lg = npos - pos
             token_type = Token.VAR
-        tokens.append(Token(expr[pos:pos + lg], token_type))
+        tokens.append(Token(apply_lut(expr[pos:pos + lg], STR_LUT), token_type))
         pos += lg
     return tokens
 
@@ -58,7 +97,7 @@ def parse(expr: str) -> Term:
             return tokens[pos]
         return None
 
-    def expect(*vals: Iterable[str]) -> bool:
+    def expect(*vals: str) -> bool:
         cur = peek()
         if cur and cur.val in vals:
             read()
@@ -77,10 +116,10 @@ def parse(expr: str) -> Term:
         if tok.val == "!":
             read()
             return Not(read_term())
-        if tok.val == "(":
+        if tok.val in PARENS:
             read()
             res = read_expr()
-            assert expect(")"), "Unclosed parenthesis"
+            assert expect(PARENS[tok.val]), "Unclosed parenthesis"
             return res
         if tok.type == Token.VAR:
             name = read().val
@@ -118,4 +157,8 @@ def parse(expr: str) -> Term:
     def read_expr() -> Term:
         return binop_funcs[-1]()
 
-    return read_expr()
+    res = read_expr()
+
+    assert peek() is None, die(peek())
+
+    return res
