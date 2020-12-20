@@ -1,8 +1,11 @@
+import qmc
 from parse import parse as _
 from rules import RULES_CNF, DISTRIB_DNF, DISTRIB_CNF
 from simplify import *
 from unify import unify_functions
 
+print(qmc.execute(4, *[0, 3, 5, 6, 7, 9, 12, 13, 15]))
+exit()
 # print(simplify(_("TRUE | x")))
 # print(simplify(_("((P & Q) & !R) | (P & !(Q | R))")))
 # print(find_unifications(_("p(X,Y,Z)"), _("p(Y,Z,X)"), True))
