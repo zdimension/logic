@@ -20,25 +20,30 @@ CONSTS = {
     "⊥": Negative,
     "⊤": Positive
 }
+QUANTIFIERS = {
+    "∀": Universal,
+    "∃": Existential
+}
 WILDCARDS = [
     "*"
 ]
 COMMA = ","
-OPS = [*BINOPS, *PARENS, *PARENS.values(), *CONSTS, COMMA, NEGATION, *WILDCARDS]
+OPS = [*BINOPS, *PARENS, *PARENS.values(), COMMA, NEGATION, *WILDCARDS, *QUANTIFIERS]
+
 
 
 @dataclasses.dataclass(frozen=True)
 class Token:
     OP = 0
     VAR = 1
+    LITERAL = 2
 
     val: str
     type: int
 
 
 CHAR_LUT = {
-    " ": "",
-    ("=>", "->", "⊃"): "→",
+    ("=>", "->", "⊃", "⟹"): "→",
     ("<=>", "<→", "==", "=", "≡"): "↔",
     ("&&", "∧", "·"): "&",
     ("||", "∨", "+"): "|",
@@ -68,17 +73,17 @@ def tokenize(expr: str) -> List[Token]:
     pos = 0
     while pos < len(expr):
         cur = expr[pos]
-        token_type = None
-        if cur in OPS:
-            lg = 1
-            token_type = Token.OP
-        else:
-            npos = pos + 1
-            while npos < len(expr) and expr[npos] not in OPS:
-                npos += 1
-            lg = npos - pos
-            token_type = Token.VAR
-        tokens.append(Token(apply_lut(expr[pos:pos + lg], STR_LUT), token_type))
+        lg = 1
+        if not cur.isspace():
+            if cur in OPS:
+                token_type = Token.OP
+            else:
+                npos = pos + 1
+                while npos < len(expr) and expr[npos] not in OPS and not expr[npos].isspace():
+                    npos += 1
+                lg = npos - pos
+                token_type = Token.VAR
+            tokens.append(Token(apply_lut(expr[pos:pos + lg], STR_LUT), token_type))
         pos += lg
     return tokens
 
@@ -129,10 +134,16 @@ def parse(expr: str) -> Term:
                     args.append(read_expr())
                 assert expect(")"), "Unclosed parenthesis"
                 return NamedPredicate(name, tuple(args))
-            if name[0].isupper():
-                return Variable(name)
-            else:
+            if name[0].islower():
                 return Constant(name)
+            else:
+                return Variable(name)
+        if tok.val in QUANTIFIERS:
+            read()
+            var = read()
+            assert var.type == Token.VAR and not var.val[0].islower(), "Expected variable after quantifier"
+            qexpr = read_expr()
+            return QUANTIFIERS[tok.val](Variable(var.val), qexpr)
         die(tok)
 
     def read_binop(operator: str, clazz: type, left_func: callable):

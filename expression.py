@@ -243,3 +243,30 @@ class Not(Predicate):
 
     def get_args(self) -> Tuple[Term, ...]:
         return self.elem,
+
+
+@dataclasses.dataclass(frozen=True)
+class Quantifier(Term, ABC):
+    var: Variable
+    expr: Term
+
+    @staticmethod
+    def get_symbol():
+        raise NotImplementedError
+
+    def __str__(self):
+        return f"{self.get_symbol()}{self.var} ({self.expr})"
+
+
+@dataclasses.dataclass(frozen=True, init=False)
+class Universal(Quantifier):
+    @staticmethod
+    def get_symbol():
+        return "∀"
+
+
+@dataclasses.dataclass(frozen=True, init=False)
+class Existential(Quantifier):
+    @staticmethod
+    def get_symbol():
+        return "∃"

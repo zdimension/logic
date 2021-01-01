@@ -94,6 +94,17 @@ DE_MORGAN = [
     "!($X | $Y) <-> (!$X & !$Y)"
 ]
 
+DEF_QUANTIFIERS = [
+    "[!∃$X P($X)] -> ∀$X !P($X)",
+    "[!∀$X P($X)] -> ∃$X !P($X)",
+
+    "[$C | ∀$X P($X)] -> ∀$X ($C | P($X))",
+    "[$C | ∃$X P($X)] -> ∃$X ($C | P($X))",
+
+    "[$C & ∀$X P($X)] -> ∀$X ($C & P($X))",
+    "[$C & ∃$X P($X)] -> ∃$X ($C & P($X))",
+]
+
 DISTRIB_DNF = " ($X & $Y#  |  $X & $Z#)  <-> [$X & ($Y# | $Z#)]"
 DISTRIB_CNF = "[($X | $Y#) & ($X | $Z#)] <-> [$X | ($Y# & $Z#)]"
 
@@ -105,7 +116,8 @@ RULES_STD = Ruleset().add(
     *DEF_IMPLICATION,
     *DEF_CONJUNCTION,
     *DEF_DISJUNCTION,
-    *DE_MORGAN
+    *DE_MORGAN,
+    *DEF_QUANTIFIERS
 )
 
 RULES_DNF = RULES_STD.add(DISTRIB_DNF)

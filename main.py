@@ -4,8 +4,8 @@ from rules import RULES_CNF, DISTRIB_DNF, DISTRIB_CNF
 from simplify import *
 from unify import unify_functions
 
-print(qmc.execute(4, *[0, 3, 5, 6, 7, 9, 12, 13, 15]))
-exit()
+# print(qmc.execute(4, *[0, 3, 5, 6, 7, 9, 12, 13, 15]))
+# exit()
 # print(simplify(_("TRUE | x")))
 # print(simplify(_("((P & Q) & !R) | (P & !(Q | R))")))
 # print(find_unifications(_("p(X,Y,Z)"), _("p(Y,Z,X)"), True))
@@ -31,7 +31,9 @@ forms = {
     "(!R & !Q) | (!R & Q)": "!R",
     "(((!Q & !R) | (Q & !R)) & P)": "P & !R",
     "(A & !B) | (!A & B)": "(A & !B) | (!A & B)",
-    "(A & !B) | (!A & B) => (A | B) & (!A | !B)": "TRUE"
+    "(A & !B) | (!A & B) => (A | B) & (!A | !B)": "TRUE",
+    "∀X P(X) & !P(X)": "∀X FALSE",
+    "(∀X P(X)) => (∃X P(X))": "TRUE"
 }
 
 for f, exp in forms.items():
@@ -63,9 +65,9 @@ r = RULES_DNF.add(
     "($A | $P1#) & (!$A | $P2#) & $X# -> ($P1# | $P2#) & $X#",
     "$A & (!$A | $P1#) & $X# -> $P1# & $X#",
 )#.add(*system)
-print("\n".join([str(k) + " -> " + str(v) for k, v in r.items()]))
-full = And([Not(_(target)), *map(_, system)])
-print(full)
-full = simplify_deep(full, r)
-print(full)
-#print(simplify(full, r))
+# print("\n".join([str(k) + " -> " + str(v) for k, v in r.items()]))
+# full = And([Not(_(target)), *map(_, system)])
+# print(full)
+# full = simplify_deep(full, r)
+# print(full)
+# #print(simplify(full, r))

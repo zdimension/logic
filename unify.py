@@ -6,7 +6,7 @@ import itertools
 from functools import lru_cache
 from typing import Iterable, Tuple, Dict
 
-from expression import Term, Constant, Variable, Predicate, VariadicOp, NamedPredicate
+from expression import Term, Constant, Variable, Predicate, VariadicOp, NamedPredicate, Quantifier
 
 Unification = Dict[Term, Term]
 Unifications = Iterable[Unification]
@@ -44,12 +44,15 @@ def gen_unifications(haystack: Term, needle: Term, bidi: bool = False) -> Unific
         return [{}]
 
     # placeholders can be unified with anything
-    if isinstance(needle, Constant) and needle.name[0] == "$":
+    if isinstance(needle, Variable) and needle.name[0] == "$":
         return [{needle: haystack}]
 
     # can unify except if both are constants and their name is different
     if isinstance(haystack, Constant) and isinstance(needle, Constant):
         return []
+
+    if isinstance(haystack, Quantifier) and isinstance(needle, Quantifier) and type(haystack) == type(needle):
+        return gen_unifications(haystack.expr, needle.expr)
 
     if bidi:
         if isinstance(haystack, Variable) or isinstance(needle, Variable):
