@@ -3,6 +3,7 @@ from parse import parse as _
 from rules import RULES_CNF, DISTRIB_DNF, DISTRIB_CNF
 from simplify import *
 from unify import unify_functions
+from pprint import pprint
 
 # print(qmc.execute(4, *[0, 3, 5, 6, 7, 9, 12, 13, 15]))
 # exit()
@@ -14,7 +15,9 @@ from unify import unify_functions
 #     _("Z"): _("g(a)"),
 #     _("X"): _("a")
 # })) for x in (_("p(h(Y,Z),f(a),g(a))"), _("p(h(f(X),g(X)),Y,Z)"))])
-
+print(simplify(_("TRUE & x & y")))
+#print(simplify(_("P(A) & !P(A) & C")))
+#exit()
 forms = {
     "!!A": "A",
     "TRUE & x & y": "x & y",
@@ -39,7 +42,7 @@ forms = {
 for f, exp in forms.items():
     exp = _(exp)
     ff = simplify(_(f))
-    print(f"{f!s:50} {ff!s:31} {exp!s:30} {ff == exp} {simplify(_(f), RULES_CNF)}")
+    print(f"{f!s:50} {ff!s:31} {exp!s:30} {ff == exp}")
 
 # print(False, find_unification(_("x"), _("f(x, y)")))
 # print(find_unification(_("x"), _("f(x, y)")))

@@ -3,7 +3,7 @@ import operator
 from collections import OrderedDict, Mapping
 from functools import reduce
 
-from expression import Imp, Equ, Not, Negative, Positive, Term
+from expression import Imp, Equ, Not, Negative, Positive, Term, VariadicOp, Variable
 from parse import parse as _
 
 
@@ -45,6 +45,8 @@ class Ruleset(Mapping):
         for expr in rules:
             rule = expr if isinstance(expr, Term) else _(expr)
             if isinstance(rule, Imp):
+                if isinstance(rule.get_left(), VariadicOp) and rule.get_left().commutes() and rule.get_left().placeholder == "*":
+                    res.add_raw(type(rule.get_left())((Variable("$@"), *rule.get_left().get_args())), type(rule.get_left())((Variable("$@"), rule.get_right())))
                 res.add_raw(rule.get_left(), rule.get_right())
             elif isinstance(rule, Equ):
                 res.add_raw(rule.get_left(), rule.get_right(), True)
@@ -77,8 +79,8 @@ DEF_IMPLICATION = [
 
 DEF_CONJUNCTION = [
     "$X &* !$X   -> FALSE",
-    # "$X &* TRUE  -> $X",
-    # "$X &* FALSE -> FALSE",
+    "$X &* TRUE  -> $X",
+    "$X &* FALSE -> FALSE",
     "$X# & TRUE  -> $X#",
     "$X &* FALSE -> FALSE"
 ]

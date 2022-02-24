@@ -4,7 +4,7 @@
 import dataclasses
 import itertools
 from functools import lru_cache
-from typing import Iterable, Tuple, Dict
+from typing import Iterable, Tuple, Dict, List
 
 from expression import Term, Constant, Variable, Predicate, VariadicOp, NamedPredicate, Quantifier
 
@@ -80,12 +80,29 @@ def unify_functions(haystack: Predicate, needle: Predicate, bidi: bool = False) 
         if isinstance(haystack, VariadicOp) and isinstance(needle, VariadicOp):  # except if they're variadic
             ha, na = haystack.get_args(), needle.get_args()
             if needle.placeholder == "*":
-                if len(na) < len(ha):
-                    combs = [list(zip(h, n))
-                             for h in itertools.combinations(ha, len(na))
-                             for n in itertools.permutations(na)]
-                    for comb in combs:
-                        yield from unify_args(comb, bidi=bidi)
+                if len(na) < len(
+                        ha):  # we're unifying something looking like A & B & C with a needle looking like $A & $B
+                    test1 = list(k_subset(list(ha), len(na)))
+                    node_type = type(needle)
+                    for comb in test1:
+                        comb = [node_type(arg) if len(arg) > 1 else arg[0] for arg in comb]
+                        for n in itertools.permutations(na):
+                            yield from unify_args(list(zip(comb, n)), bidi=bidi)
+                    #combs = [list(zip(h, n))
+                    #         for h in itertools.combinations(ha, len(na))
+                    #         for n in itertools.permutations(na)]
+                    #for comb in combs:
+                    #    yield from unify_args(comb, bidi=bidi)
+                    #non_place = node_type(tuple(list(needle.get_args()) + [Variable(f"${i}") for i in range(len(ha) - len(na))]))
+                    #ur = list(unify_functions(haystack, non_place, bidi))
+                    #yield from ur
+                    # for h in itertools.combinations(ha, len(na)):
+                    #     for n in itertools.permutations(na):
+                    #         ur = unify_args(list(zip(h, n)), bidi=bidi)
+                    #         for unif in ur:
+                    #             if True or len(unif) == len(na):
+                    #                 yield unif
+                    #         #yield from ur
                     return
             # todo: should allow min and max numbers
             elif varargs := {t for t in na if isinstance(t, Constant) and t.name[-1] == "#"}:
@@ -112,3 +129,85 @@ def unify_functions(haystack: Predicate, needle: Predicate, bidi: bool = False) 
 
     for test in tests:
         yield from unify_args(test, bidi=bidi)
+
+
+def k_subset(ns: List, m: int):
+    """Returns all the possible partitions of ns into m non-empty sets
+
+    https://codereview.stackexchange.com/a/1944/113123"""
+
+    def visit(n, a):
+        ps = [[] for _ in range(m)]
+        for j in range(n):
+            ps[a[j + 1]].append(ns[j])
+        return ps
+
+    def f(mu: int, nu: int, sigma: int, n: int, a: List[int]):
+        if mu == 2:
+            yield visit(n, a)
+        else:
+            for v in f(mu - 1, nu - 1, (mu + sigma) % 2, n, a):
+                yield v
+        if nu == mu + 1:
+            a[mu] = mu - 1
+            yield visit(n, a)
+            while a[nu] > 0:
+                a[nu] = a[nu] - 1
+                yield visit(n, a)
+        elif nu > mu + 1:
+            if (mu + sigma) % 2 == 1:
+                a[nu - 1] = mu - 1
+            else:
+                a[mu] = mu - 1
+            if (a[nu] + sigma) % 2 == 1:
+                for v in b(mu, nu - 1, 0, n, a):
+                    yield v
+            else:
+                for v in f(mu, nu - 1, 0, n, a):
+                    yield v
+            while a[nu] > 0:
+                a[nu] = a[nu] - 1
+                if (a[nu] + sigma) % 2 == 1:
+                    for v in b(mu, nu - 1, 0, n, a):
+                        yield v
+                else:
+                    for v in f(mu, nu - 1, 0, n, a):
+                        yield v
+
+    def b(mu, nu, sigma, n, a):
+        if nu == mu + 1:
+            while a[nu] < mu - 1:
+                yield visit(n, a)
+                a[nu] = a[nu] + 1
+            yield visit(n, a)
+            a[mu] = 0
+        elif nu > mu + 1:
+            if (a[nu] + sigma) % 2 == 1:
+                for v in f(mu, nu - 1, 0, n, a):
+                    yield v
+            else:
+                for v in b(mu, nu - 1, 0, n, a):
+                    yield v
+            while a[nu] < mu - 1:
+                a[nu] = a[nu] + 1
+                if (a[nu] + sigma) % 2 == 1:
+                    for v in f(mu, nu - 1, 0, n, a):
+                        yield v
+                else:
+                    for v in b(mu, nu - 1, 0, n, a):
+                        yield v
+            if (mu + sigma) % 2 == 1:
+                a[nu - 1] = 0
+            else:
+                a[mu] = 0
+        if mu == 2:
+            yield visit(n, a)
+        else:
+            for v in b(mu - 1, nu - 1, (mu + sigma) % 2, n, a):
+                yield v
+
+    n = len(ns)
+    a = [0] * (n + 1)
+    for j in range(1, m + 1):
+        a[n - m + j] = j - 1
+    return f(m, n, 0, n, a)
